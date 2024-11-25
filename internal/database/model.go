@@ -49,6 +49,8 @@ func (t Todo) Update(id int, completed bool) error {
 	return nil
 }
 
+// TODO: Implement Find method
+// This method should find a todo by using finder with '/' as the keypress to activate the function
 func (t Todo) Find() error {
 	return nil
 }
