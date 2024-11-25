@@ -42,83 +42,98 @@ func UI(db *sql.DB) {
 	// Render initial layout
 	ui.Render(help, list)
 
+	var normalMode = true
+
+	// Input widget
+	inputBox := widgets.NewParagraph()
+	inputBox.Title = "Add New Task"
+	inputBox.Text = ""
+	inputBox.BorderStyle = ui.NewStyle(ui.ColorYellow)
+	inputBox.SetRect(10, 10, 50, 15)
+
 	// Event loop
 	for e := range ui.PollEvents() {
 		switch e.Type {
 		case ui.KeyboardEvent:
-			switch e.ID {
-			case "q":
-				return // Quit the application
-			case "<Down>", "j":
-				if list.SelectedRow < len(todoLists)-1 {
-					list.SelectedRow++
-				}
-			case "<Up>", "k":
-				if list.SelectedRow > 0 {
-					list.SelectedRow--
-				}
-			case "<Space>":
-				// Toggle completion status
-				if len(todoLists) == 0 {
-					continue
-				}
-				idx := list.SelectedRow
-				todoLists[idx].Completed = !todoLists[idx].Completed
-				if todoLists[idx].Completed {
-					todos.Update(todoLists[idx].ID, true)
-				} else {
-					todos.Update(todoLists[idx].ID, false)
-				}
-				list.Rows = formatTaskList(todoLists)
+			if normalMode {
+				switch e.ID {
+				case "q":
+					return // Quit the application
+				case "<Down>", "j":
+					if list.SelectedRow < len(todoLists)-1 {
+						list.SelectedRow++
+					}
+				case "<Up>", "k":
+					if list.SelectedRow > 0 {
+						list.SelectedRow--
+					}
+				case "<Space>":
+					// Toggle completion status
+					if len(todoLists) == 0 {
+						continue
+					}
+					idx := list.SelectedRow
+					todoLists[idx].Completed = !todoLists[idx].Completed
+					if todoLists[idx].Completed {
+						todos.Update(todoLists[idx].ID, true)
+					} else {
+						todos.Update(todoLists[idx].ID, false)
+					}
+					list.Rows = formatTaskList(todoLists)
 
-			case "a":
-				// Add a new task
-				// Create a new task
-				newTodo := showInputPopup("Add New Todo", &strings.Builder{})
+				case "a":
+					// Add a new task
+					// Create a new task
+					newTodo := showInputPopup("Add New Todo", &strings.Builder{})
+					normalMode = false
 
-				slog.Debug("New TODO", "todo", newTodo)
-				if newTodo != "" {
-					todos.Create(newTodo, false)
+					slog.Debug("New TODO", "todo", newTodo)
+					if newTodo != "" {
+						todos.Create(newTodo, false)
+						todoLists = todos.All()
+						list.Rows = formatTaskList(todoLists)
+						ui.Render(help, list)
+					}
+					normalMode = true
+				case "m":
+					// Modify the selected task description
+					if len(todoLists) == 0 {
+						continue
+					}
+					idx := list.SelectedRow
+					currentDescription := strings.Split(todoLists[idx].Description, " ")[2:]
+					stringifiedCurrentDescription := strings.Join(currentDescription, " ")
+					stringsBuilderCurrentDescription := strings.Builder{}
+					stringsBuilderCurrentDescription.WriteString(stringifiedCurrentDescription)
+					newDescription := showInputPopup("Modify Todo", &stringsBuilderCurrentDescription)
+					normalMode = false
+					if newDescription != "" {
+						todoLists[idx].Description = newDescription
+						todos.Update(todoLists[idx].ID, todoLists[idx].Completed)
+						list.Rows = formatTaskList(todoLists)
+						ui.Render(help, list)
+					}
+					normalMode = true
+				case "d":
+					// Delete the selected task
+					if len(todoLists) == 0 {
+						continue
+					}
+					slog.Debug("Deleting task", "index", list.SelectedRow)
+					idx := list.SelectedRow
+					todos.Delete(todoLists[idx].ID)
+					// Refresh the list after deletion
 					todoLists = todos.All()
 					list.Rows = formatTaskList(todoLists)
+					if list.SelectedRow > 0 {
+						list.SelectedRow--
+					}
 					ui.Render(help, list)
 				}
-			case "m":
-				// Modify the selected task description
-				if len(todoLists) == 0 {
-					continue
-				}
-				idx := list.SelectedRow
-				currentDescription := strings.Split(todoLists[idx].Description, " ")[2:]
-				stringifiedCurrentDescription := strings.Join(currentDescription, " ")
-				stringsBuilderCurrentDescription := strings.Builder{}
-				stringsBuilderCurrentDescription.WriteString(stringifiedCurrentDescription)
-				newDescription := showInputPopup("Modify Todo", &stringsBuilderCurrentDescription)
-				if newDescription != "" {
-					todoLists[idx].Description = newDescription
-					todos.Update(todoLists[idx].ID, todoLists[idx].Completed)
-					list.Rows = formatTaskList(todoLists)
-					ui.Render(help, list)
-				}
-			case "d":
-				// Delete the selected task
-				if len(todoLists) == 0 {
-					continue
-				}
-				slog.Debug("Deleting task", "index", list.SelectedRow)
-				idx := list.SelectedRow
-				todos.Delete(todoLists[idx].ID)
-				// Refresh the list after deletion
-				todoLists = todos.All()
-				list.Rows = formatTaskList(todoLists)
-				if list.SelectedRow > 0 {
-					list.SelectedRow--
-				}
+
+				// Re-render UI
 				ui.Render(help, list)
 			}
-
-			// Re-render UI
-			ui.Render(help, list)
 
 		case ui.ResizeEvent:
 			// Adjust widget positions and sizes when the terminal is resized
@@ -157,6 +172,7 @@ func showInputPopup(title string, inputText *strings.Builder) string {
 	inputBox.BorderStyle = ui.NewStyle(ui.ColorYellow)
 	termWidth, termHeight := ui.TerminalDimensions()
 	inputBox.SetRect(10, 10, termWidth-10, termHeight-20)
+	inputBox.Text = inputText.String()
 
 	// Render the input box
 	ui.Render(inputBox)
@@ -185,6 +201,7 @@ func showInputPopup(title string, inputText *strings.Builder) string {
 				return ""
 			default:
 				// Add character to input
+				slog.Debug("Key Pressed", "key", e.ID)
 				if len(e.ID) == 1 { // Filter valid characters
 					inputText.WriteRune(rune(e.ID[0]))
 				}
