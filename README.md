@@ -16,4 +16,4 @@ go build -o todo-cli cmd/main.go
 
 # Credit
 - [termui](https://github.com/gizak/termui)
-- [go-sqlite3](github.com/mattn/go-sqlite3)
+- [go-sqlite3](https://github.com/mattn/go-sqlite3)
